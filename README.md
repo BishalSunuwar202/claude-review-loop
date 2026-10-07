@@ -20,6 +20,8 @@ Based on:
 ## Install
 
 ```bash
+git clone https://github.com/BishalSunuwar202/claude-review-loop.git
+cd claude-review-loop
 ./install.sh   # symlinks skills/* → ~/.claude/skills, agents/* → ~/.claude/agents
 ```
 
