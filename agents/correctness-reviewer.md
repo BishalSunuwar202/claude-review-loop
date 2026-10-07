@@ -45,6 +45,8 @@ OVERALL_SUMMARY:
 ```
 
 With no findings, write `(none)` on the line after `STRUCTURED_FINDINGS:`.
+Anything you noticed that might be a problem goes in the findings (at least LOW),
+never only in the summary.
 
 Severity: CRITICAL = data loss, security breach, or outage on merge. HIGH = a
 real bug a user will hit. MEDIUM = likely bug or risky gap. LOW = minor. NIT =

@@ -1,0 +1,1 @@
+[{"id": "sql-injection", "file": "src/users.js", "lines": [8, 11], "keywords": ["injection", "concatenat", "parameter", "placeholder", "unsanitized", "unescaped", "interpolat"]}]

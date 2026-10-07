@@ -87,6 +87,10 @@ ladder:
 3. Commit with a subject-line-only message: `fix(review): <what changed>`.
    Do not add trailers.
 4. `python3 $SCRIPTS/loopstate.py disposition <fingerprint> fixed --commit <sha> --note "<one line>"`
+5. If the finding was HIGH/CRITICAL and verified (or the fix needed a code change
+   to a real bug, not a style point), append one line under `## Confirmed by
+   review` in `.review-loop/incidents.md` so future reviews check for repeats:
+   `- <fix sha> <date> <what went wrong, one line> — files: <paths>`
 
 Push only when `--push` was passed (from review-loop or `$ARGUMENTS`). Without it,
 commits stay local and the report says so.

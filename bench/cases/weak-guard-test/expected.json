@@ -1,0 +1,2 @@
+[{"id": "guard-scope", "file": "test/no-hard-delete.test.js", "lines": [8, 15], "keywords": ["only scans", "src/actions", "booking-core", "src/lib", "doesn't scan", "does not scan", "never scans", "scope"]},
+ {"id": "hard-delete", "file": "src/lib/booking-core.js", "lines": [3, 3], "keywords": ["deletemany", "hard-delete", "hard delete", "soft-delete", "soft delete"]}]

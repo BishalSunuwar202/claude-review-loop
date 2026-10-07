@@ -1,0 +1,1 @@
+[{"id": "off-by-one", "file": "src/list.js", "lines": [5, 7], "keywords": ["off-by-one", "off by one", "size - 1", "drops", "missing the last", "one fewer", "19 items", "exclusive"]}]

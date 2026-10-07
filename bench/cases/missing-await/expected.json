@@ -1,0 +1,1 @@
+[{"id": "missing-await", "file": "src/orders.js", "lines": [4, 10], "keywords": ["await", "unhandled", "promise", "rejection", "not awaited"]}]

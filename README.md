@@ -1,21 +1,22 @@
 # claude-review-loop
 
-A multi-agent code review loop for Claude Code. It reviews a branch or PR with
-several specialist agents, fixes the clear findings, reviews again, and stops
-when a harness check says it's done.
+A review-and-fix loop for Claude Code. It uses Claude Code's built-in
+`/code-review` to find bugs, adds the things a general reviewer can't know about
+your repo, fixes the clear findings, reviews again, and stops when a rule in code
+says it's done.
 
-Based on:
-- **Paul D'Ambra's qa-swarm / review-triage / pr-shepherd** ([dotfiles](https://github.com/pauldambra/dotfiles/tree/main/ai/skills)),
-  summarised in [PostHog's code review tips](https://posthog.com/newsletter/code-review-tips):
-  cheap router first, specialist lenses on demand, triage into
-  actionable / nit / ambiguous, iterate up to 3 times.
-- **PostHog's StampHog**: deterministic gates (size, deny-listed paths) run before any model.
-  "Watch it run, don't trust the explanation" becomes the `finding-verifier` agent.
-- **[The Agent Loop Decoded](https://blogs.oracle.com/developers/the-agent-loop-decoded-three-levels-every-agent-engineer-must-know)** (Oracle):
-  explicit stop conditions in the harness, not the model; stuck/oscillation
-  detection; memory read before and written after each run; tool-output
-  offloading; human-in-the-loop as a deliberate pause with a precise question.
-- **[Deca-hundy](https://pauldambra.dev/2026/02/deca-hundy.html)**: small steps, iterate deliberately.
+**Why it exists.** In a head-to-head on a real branch, the built-in `/code-review`
+found more bugs than this project's own first version. So this project stopped
+competing with it. `/code-review` is the bug finder; this repo is everything around
+it:
+
+- **The loop.** Fix → run tests → re-review, because fixes create new bugs. It stops on
+  harness rules (nothing new, same bug back twice, round or time limit), not on the
+  model saying "looks good".
+- **The PR workflow.** Inline comments, one sticky summary with a verdict, replies and
+  resolves bot threads, never touches a thread a human has joined.
+- **What only your repo knows.** Whether new tests really guard what they claim, this
+  repo's past incidents, the PR's spec, and nits you've already dismissed.
 
 ## Install
 
@@ -35,84 +36,101 @@ Start a new Claude Code session afterwards.
 | `/review-loop 123 --push` | Same, on PR #123, and push fix commits |
 | `/review-loop https://github.com/org/repo/pull/7` | Any repo's PR (reuses or clones into ~/coding-files) |
 | `/review-loop feature-x` | A branch with no PR yet: local report + local fix commits |
-| `/review-swarm` | One review pass only, with no fixes |
+| `/review-swarm` | One review pass only, no fixes |
 | `/review-triage` | Triage existing findings and PR bot threads once |
 
-Flags for `/review-loop`: `--push`, `--max-rounds N` (default 3),
-`--budget M` minutes (default 45), `--reset` (discard loop state).
+`/review-loop` flags: `--push`, `--max-rounds N` (default 3), `--budget M` minutes
+(default 45), `--reset`.
+`/review-swarm` flags: `--finder router` (skip `/code-review`, use the built-in
+router + coverage split instead), `--lenses security,xp,-incident-checker` (force
+specialists on or off).
+
+On a PR you didn't author, the loop runs review-only: comments, no fixes, no pushes.
 
 ## How a round works
 
 ```
-           ┌──────────────── gate.sh (deterministic) ────────────────┐
-           │ lines, files, deny-list paths → mandatory_delegation?   │
-           └───────────────────────────┬─────────────────────────────┘
-                                       ▼
-memory.md ─────────────▶  review-router (sonnet): full first pass
-                          + danger grade + DELEGATION_PLAN
-                                       │  only if warranted (parallel)
-             ┌───────────────┬─────────┴─────┬───────────────┐
-             ▼               ▼               ▼               ▼
-   correctness-reviewer  security-auditor  xp-reviewer   craft-reviewer
-   (db/perf/concurrency) (injection/IDOR)  (simple design) (observability/rollout)
-             └───────────────┴───────┬───────┴───────────────┘
-                                     ▼
-                finding-verifier: reproduce HIGH/CRITICAL → CONFIRMED / REFUTED
-                                     ▼
-                dedupe + convergence + verdict → PR comments or local report
-                                     ▼
-                review-triage: actionable → fix + test + commit
-                               nit → close (+ remember)
-                               ambiguous → autonomy ladder → promote or defer
-                               human thread → never touched
-                                     ▼
-                loopstate.py decide → converged | max_rounds | budget | stuck | continue
+ gate.sh ── size, risky paths, docs-only?          incidents.sh ── past fix commits
+    │                                                   │
+    ▼                                                   ▼
+ /code-review high  ──────────────►  bug findings (normalised: file line, id, severity)
+    │  (fallback: review-router + parallel correctness reviewers, every file read closely)
+    ▼
+ specialists, chosen by facts not by a model's grade (parallel):
+   test-reviewer      changed tests?        does the test really fail if the bug returns?
+   incident-checker   incidents.md?         does this repeat a bug this repo already had?
+   spec-checker       PR body / spec?       is every requirement built, nothing extra?
+   security-auditor   auth/payment paths?   injection, IDOR, SSRF, secrets
+   correctness        migrations/queues/big diff?   data, concurrency, edge cases
+   xp / craft         only with --lenses    design, observability, rollout
+    ▼
+ finding-verifier ── reproduce HIGH/CRITICAL with a throwaway test → confirmed / refuted
+    ▼
+ dedupe + verdict → PR comments + sticky summary, or local report
+    ▼
+ review-triage ── fix + test + commit │ nit → remember │ unclear → ask │ human thread → hands off
+    ▼
+ loopstate.py decide ── converged │ max_rounds │ budget │ stuck │ continue
 ```
 
-## Files
+## Benchmark
 
+`bench/` has 8 small repos, each with one realistic planted bug on a `feat` branch:
+SQL injection, IDOR, off-by-one, missing await, a guard test that doesn't guard,
+a check-then-act race, a repeat of a past incident, and a missed spec requirement.
+
+```bash
+bench/run.sh code-review 3     # Claude Code's /code-review high, 3 runs per case
+bench/run.sh swarm 3           # /code-review + specialists
+bench/run.sh swarm-router 3    # this repo's router instead of /code-review
+python3 bench/score.py         # recall, time, tokens, cost, and which bugs only a specialist caught
 ```
-skills/review-loop/SKILL.md      outer loop: rounds, stop conditions, human questions
-skills/review-swarm/SKILL.md     one review pass (gate → router → lenses → verify → post)
-skills/review-swarm/scripts/
-  gate.sh                        deterministic risk gate
-  loopstate.py                   loop state + stop conditions (the harness)
-skills/review-triage/SKILL.md    classify, fix, reply, resolve, defer
-agents/*.md                      router, 4 specialist lenses, verifier
-```
 
-Per-repo state goes in `.review-loop/` (added to `.git/info/exclude` automatically):
+Each run is a real headless Claude Code session (roughly 50–150k tokens), so a full
+3×8×3 run is not cheap. Runs vary, which is why each case runs three times.
 
-- `state.json`: rounds and every finding's fingerprint and status
-- `memory.md`: durable decisions such as conventions and dismissed patterns. Reviewers read it first.
-  Commit a copy if you want your team to share it.
-- `runs/rN/`: full reviewer outputs, kept out of the model's context
-- `deny-list`: optional extra high-risk path regexes, one per line
+**Results:** see [bench/RESULTS.md](bench/RESULTS.md). A specialist stays in the default
+set only if it catches planted bugs that `/code-review` misses.
 
-## vs Claude Code's built-in `/code-review`
+### The comparison that started this
 
-One comparison on one branch, same commit:
+One real branch, same commit, before the redesign:
 
-| | `/code-review high` | `/review-swarm` |
+| | `/code-review high` | first `/review-swarm` |
 |---|---|---|
 | Time | ~3 min | ~2 min (router + 1 specialist) |
 | Tokens | ~100k | ~85k |
 | Findings | 9 | 4 (1 medium, 3 low) |
-| Verdict / severities | no | yes |
 
-Both found the same 3 core issues. `/code-review` also caught two real gaps in a
-new test that the swarm missed, because the router only sent the migration to a
-specialist. The swarm caught one missing test the built-in didn't.
+Both found the same 3 core issues. `/code-review` also caught two real gaps in a new
+test that the swarm missed: the router only sent the migration to a specialist, so the
+test file was skimmed. That miss is why `/code-review` is now the finder, why every
+changed file must get a close read, and why `test-reviewer` exists.
 
-Use `/code-review high` for a close single pass before merging. Use
-`/review-loop` when you want PR comments, a verdict, memory of dismissed nits,
-and repeated fix-and-re-review rounds. One run is a lean, not a rule.
+## Files
+
+```
+skills/review-loop/SKILL.md       outer loop: rounds, stop conditions, human questions
+skills/review-swarm/SKILL.md      one review pass
+skills/review-swarm/scripts/
+  gate.sh                         deterministic risk gate
+  incidents.sh                    builds .review-loop/incidents.md from git history
+  loopstate.py                    loop state + stop conditions (the harness)
+skills/review-triage/SKILL.md     classify, fix, reply, resolve, defer
+agents/                           router, test/incident/spec checkers, 4 lenses, verifier
+bench/                            planted-bug cases, runner, scorer
+```
+
+Per-repo state lives in `.review-loop/` (added to `.git/info/exclude` automatically):
+`state.json` (findings and their status), `memory.md` (conventions and dismissed nits),
+`incidents.md` (past bugs), `runs/rN/` (full reviewer outputs), and an optional
+`deny-list` of extra risky path patterns.
 
 ## Safety defaults
 
-Fixes are committed locally and pushed only with `--push`. The loop never
-force-pushes, merges, approves, or relabels. Threads a human has replied in are
-never touched. If a fix turns tests red, it's reverted and the finding is deferred.
+Fixes are committed locally and pushed only with `--push`. The loop never force-pushes,
+merges, approves, or relabels. Threads a human has replied in are never touched. If a fix
+turns tests red, it's reverted and the finding is deferred.
 
 ## Credits
 
