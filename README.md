@@ -1,4 +1,4 @@
-# review-loop
+# claude-review-loop
 
 A multi-agent code review loop for Claude Code. It reviews a branch or PR with
 several specialist agents, fixes the clear findings, reviews again, and stops
@@ -87,8 +87,32 @@ Per-repo state goes in `.review-loop/` (added to `.git/info/exclude` automatical
 - `runs/rN/`: full reviewer outputs, kept out of the model's context
 - `deny-list`: optional extra high-risk path regexes, one per line
 
+## vs Claude Code's built-in `/code-review`
+
+One comparison on one branch, same commit:
+
+| | `/code-review high` | `/review-swarm` |
+|---|---|---|
+| Time | ~3 min | ~2 min (router + 1 specialist) |
+| Tokens | ~100k | ~85k |
+| Findings | 9 | 4 (1 medium, 3 low) |
+| Verdict / severities | no | yes |
+
+Both found the same 3 core issues. `/code-review` also caught two real gaps in a
+new test that the swarm missed, because the router only sent the migration to a
+specialist. The swarm caught one missing test the built-in didn't.
+
+Use `/code-review high` for a close single pass before merging. Use
+`/review-loop` when you want PR comments, a verdict, memory of dismissed nits,
+and repeated fix-and-re-review rounds. One run is a lean, not a rule.
+
 ## Safety defaults
 
 Fixes are committed locally and pushed only with `--push`. The loop never
 force-pushes, merges, approves, or relabels. Threads a human has replied in are
 never touched. If a fix turns tests red, it's reverted and the finding is deferred.
+
+## Credits
+
+The design follows Paul D'Ambra's published review skills at PostHog. These files are an
+independent rewrite for Claude Code, not a copy. License: MIT.
