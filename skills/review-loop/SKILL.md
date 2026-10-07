@@ -7,7 +7,7 @@ description: >
   finding stuck after repeated fixes. Ambiguous and human-thread items pause for
   the user with a precise question. Use for "review-loop", "review and fix my
   branch", "babysit this PR's review", or "loop until review is clean".
-  Arguments: [PR number|URL] [--push] [--max-rounds N] [--budget M] [--reset]
+  Arguments: [PR number|PR URL|branch] [--push] [--max-rounds N] [--budget M] [--reset]
 ---
 # Review Loop
 
@@ -31,8 +31,24 @@ mixing those with uncommitted work is unrecoverable confusion.
 
 ## Setup (once)
 
-1. Resolve target: PR from `$ARGUMENTS` or `gh pr view`; else local mode against
-   `main`/`master`. If the PR is MERGED/CLOSED, stop.
+1. Resolve the target from the first non-flag argument:
+   - **Nothing** → the current branch. If it has an open PR (`gh pr view --json
+     number,url,author,state,baseRefName`), use PR mode; otherwise local mode
+     against the default branch (`gh repo view --json defaultBranchRef` or
+     `main`/`master`). On the default branch itself, stop and ask for a branch.
+   - **PR number** → `gh pr checkout <n>` in the current repo.
+   - **PR URL** (`https://github.com/<owner>/<repo>/pull/<n>`) → if the current
+     repo's `origin` is that repo, `gh pr checkout <n>`. Otherwise look for an
+     existing clone at `~/coding-files/<repo>`; if none, ask before cloning there
+     with `gh repo clone <owner>/<repo>`. Then `cd` in and `gh pr checkout <n>`.
+   - **Branch name** → `git checkout <branch>` (fetch it from `origin` first if
+     it isn't local), then treat it like "nothing".
+
+   If the PR is MERGED/CLOSED, stop.
+   **Not your PR?** If the PR author (`.author.login`) is not `gh api user --jq
+   .login`, run review-only: review-swarm rounds with comments, no triage fixes,
+   no push, no thread resolving. Tell the user why. Fixing a colleague's branch
+   or resolving their threads is their call, not the bot's.
 2. Parse flags: `--push` (default off: fixes are committed locally, not pushed),
    `--max-rounds` (default 3), `--budget` minutes (default 45), `--reset`.
 3. ```bash

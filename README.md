@@ -31,6 +31,8 @@ Start a new Claude Code session afterwards.
 |---|---|
 | `/review-loop` | Full loop on the current branch: review → fix → re-review until done |
 | `/review-loop 123 --push` | Same, on PR #123, and push fix commits |
+| `/review-loop https://github.com/org/repo/pull/7` | Any repo's PR (reuses or clones into ~/coding-files) |
+| `/review-loop feature-x` | A branch with no PR yet: local report + local fix commits |
 | `/review-swarm` | One review pass only, with no fixes |
 | `/review-triage` | Triage existing findings and PR bot threads once |
 
