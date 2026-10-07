@@ -50,9 +50,16 @@ def load_run(run_dir):
         text = data.get("result") or ""
         meta["seconds"] = (data.get("duration_ms") or 0) / 1000
         meta["cost"] = data.get("total_cost_usd")
-        u = data.get("usage") or {}
-        meta["tokens"] = sum(u.get(k) or 0 for k in ("input_tokens", "output_tokens",
-                             "cache_read_input_tokens", "cache_creation_input_tokens")) or None
+        # modelUsage covers every model the session used, subagents included;
+        # the top-level usage block can be all zeros after a slash command.
+        mu = data.get("modelUsage") or {}
+        tok = sum((m.get(k) or 0) for m in mu.values() for k in (
+            "inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"))
+        if not tok:
+            u = data.get("usage") or {}
+            tok = sum(u.get(k) or 0 for k in ("input_tokens", "output_tokens",
+                      "cache_read_input_tokens", "cache_creation_input_tokens"))
+        meta["tokens"] = tok or None
         if data.get("is_error"):
             meta["error"] = data.get("subtype") or "error"
     except Exception as e:
