@@ -118,3 +118,5 @@ never touched. If a fix turns tests red, it's reverted and the finding is deferr
 
 The design follows Paul D'Ambra's published review skills at PostHog. These files are an
 independent rewrite for Claude Code, not a copy. License: MIT.
+
+Thanks to @IamNitu for collaborating on this project.
