@@ -42,7 +42,7 @@ Start a new Claude Code session afterwards.
 `/review-loop` flags: `--push`, `--max-rounds N` (default 3), `--budget M` minutes
 (default 45), `--reset`.
 `/review-swarm` flags: `--finder router` (skip `/code-review`, use the built-in
-router + coverage split instead), `--lenses security,xp,-incident-checker` (force
+router + coverage split instead), `--lenses spec,incident,-test` (force
 specialists on or off).
 
 On a PR you didn't author, the loop runs review-only: comments, no fixes, no pushes.
@@ -57,12 +57,10 @@ On a PR you didn't author, the loop runs review-only: comments, no fixes, no pus
     │  (fallback: review-router + parallel correctness reviewers, every file read closely)
     ▼
  specialists, chosen by facts not by a model's grade (parallel):
-   test-reviewer      changed tests?        does the test really fail if the bug returns?
-   incident-checker   incidents.md?         does this repeat a bug this repo already had?
-   spec-checker       PR body / spec?       is every requirement built, nothing extra?
-   security-auditor   auth/payment paths?   injection, IDOR, SSRF, secrets
-   correctness        migrations/queues/big diff?   data, concurrency, edge cases
-   xp / craft         only with --lenses    design, observability, rollout
+   correctness        any code change           second close read: data, payments, edge cases
+   test-reviewer      tests or code changed     does the test really fail if the bug returns? missing tests?
+   security-auditor   auth/payment paths?       injection, IDOR, SSRF, secrets
+   opt-in (--lenses): spec, incident, xp, craft
     ▼
  finding-verifier ── reproduce HIGH/CRITICAL with a throwaway test → confirmed / refuted
     ▼
@@ -89,12 +87,33 @@ python3 bench/score.py         # recall, time, tokens, cost, and which bugs only
 Each run is a real headless Claude Code session (roughly 50–150k tokens), so a full
 3×8×3 run is not cheap. Runs vary, which is why each case runs three times.
 
-**Results:** see [bench/RESULTS.md](bench/RESULTS.md). A specialist stays in the default
-set only if it catches planted bugs that `/code-review` misses.
+**Results:** see [bench/RESULTS.md](bench/RESULTS.md).
+
+### Head-to-head on a real PR
+
+One real feature branch (a booking and payment flow), same commit, fresh session each,
+every finding checked against the code:
+
+| | `/code-review high` | `/review-swarm` |
+|---|---|---|
+| Real findings | 8 | 20 |
+| False positives | 1 of 10 | 4 of 26 |
+| Real issues the other missed | 0 | 12, including a paid customer told "booking received" with nothing saved |
+| Time | ~4 min | ~15 min |
+| Cost | $1.35 | $5.26 (3.9×) |
+
+Almost all the extra real findings came from the correctness reviewer, and the test
+reviewer added the missing tests. The spec and incident checkers added nothing real,
+so they are now opt-in. `/code-review` also varies run to run: the swarm's own
+`/code-review` pass missed two issues the standalone run found, and the specialists
+caught both anyway.
+
+**When to use which:** a quick check → `/code-review`. A PR that touches money,
+data, or auth, or one you want fixed and re-checked → `/review-loop`.
 
 ### The comparison that started this
 
-One real branch, same commit, before the redesign:
+An earlier branch, before the redesign:
 
 | | `/code-review high` | first `/review-swarm` |
 |---|---|---|

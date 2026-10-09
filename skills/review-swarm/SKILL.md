@@ -2,10 +2,10 @@
 name: review-swarm
 description: >
   One multi-agent review pass over the current branch or a PR. Claude Code's
-  built-in /code-review is the bug finder; specialist agents add only what it
-  can't know — whether new tests really guard what they claim, past incidents in
-  this repo, and the PR's spec — plus optional security, correctness, xp and craft
-  lenses on risky paths. Findings with HIGH/CRITICAL severity are verified by a
+  built-in /code-review is the bug finder; a correctness reviewer and a test
+  reviewer add a second close read and check whether tests really guard what they
+  claim, a security auditor joins on risky paths, and spec, incident, xp and craft
+  lenses are opt-in. Findings with HIGH/CRITICAL severity are verified by a
   reproducer, deduped, given a verdict, and posted to the PR or reported locally.
   Use for "review-swarm", "swarm review", or a multi-perspective review. The
   review-loop skill calls this every round.
@@ -90,15 +90,20 @@ scope; none is told about the others. Pass each the review memory.
 
 | Agent | Runs when | Model | Scope |
 |---|---|---|---|
-| `test-reviewer` | any changed file is a test (`test`, `spec`, `__tests__`, `_test.`) | sonnet | changed tests + the code they claim to guard |
-| `incident-checker` | `.review-loop/incidents.md` has entries | sonnet | full diff + incidents.md |
-| `spec-checker` | `spec.md` is non-empty | sonnet | full diff + spec.md |
+| `correctness-reviewer` | any changed non-doc, non-test code | opus if gate `deny_list_hits` or diff > 400 lines, else sonnet | changed code; split into ~300-line groups (one agent each) above 600 lines |
+| `test-reviewer` | any changed test file, or changed code with no changed test | sonnet | changed tests + the code they claim to guard, or the changed code's missing tests |
 | `security-auditor` | gate `deny_list_hits` include auth/session/secret/token/permission/payment/billing/webhook paths | opus | those files |
-| `correctness-reviewer` | gate `deny_list_hits` include migration/schema/sql/queue/worker/cron/mutex paths, or diff > 400 lines | opus | those files |
+| `spec-checker` | only if named in `--lenses` (`spec`) | sonnet | full diff + spec.md |
+| `incident-checker` | only if named in `--lenses` (`incident`) | sonnet | full diff + incidents.md |
 | `xp-reviewer`, `craft-reviewer` | only if named in `--lenses` | sonnet | full diff |
 
-`--lenses` can also force any agent on (`--lenses security,xp`) or off
-(`--lenses -incident-checker`). Cap: 6 specialists per pass. If two reviewers
+Why this default set: on a real PR, correctness and test reviewers found every real
+issue /code-review missed; spec and incident checkers added nothing but a nit, so
+they are opt-in. Keep collecting spec.md and incidents.md in Step 1 anyway — they
+are cheap and the opt-in lenses need them.
+
+`--lenses` can also force any agent on (`--lenses spec,incident,xp`) or off
+(`--lenses -test`). Cap: 6 specialists per pass. If two reviewers
 contradict each other on a HIGH finding, one extra `fable` pass may be scoped to
 that disagreement.
 
@@ -123,6 +128,9 @@ Merge all findings into one STRUCTURED_FINDINGS block:
   finding, highest severity, clearest `fix`, `reviewer: convergent(<a>+<b>)`,
   confidence HIGH.
 - Drop anything `memory.md` dismisses.
+- **Pre-existing bugs.** If the defect is also present on `<base>` (check with
+  `git show <base>:<file>`), keep it but append ` (pre-existing)` to `body` and cap
+  severity at MEDIUM. Report it; it is not this PR's to fix.
 - **Nothing mentioned is lost.** Any concern a reviewer raised only in its summary
   becomes at least a LOW finding.
 
@@ -174,7 +182,8 @@ OVERALL_SUMMARY:
 
 CRITICAL = data loss, security breach, or outage on merge. HIGH = a real bug a
 user will hit, or a test that claims protection it does not give. MEDIUM = likely
-bug or risky gap. LOW = minor. NIT = taste.
+bug or risky gap. LOW = minor, including a missing test for behaviour that works.
+NIT = taste.
 
 ## Return value (when called from review-loop)
 

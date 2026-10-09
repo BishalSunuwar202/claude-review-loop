@@ -64,6 +64,9 @@ reply, no resolve.** If unsure, treat as human.
 **Nit** — style-only, speculative, duplicate, already addressed, or REFUTED by
 the verifier.
 
+**Pre-existing** findings (body ends `(pre-existing)`) are never fixed in this
+branch: defer them with the note "pre-existing on <base>; fix in a separate PR".
+
 **Ambiguous** — everything else. Before deferring, place it on the autonomy
 ladder:
 - **Just do it** — clearly better and one obvious way to do it → treat as
