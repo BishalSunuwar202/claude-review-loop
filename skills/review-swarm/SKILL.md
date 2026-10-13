@@ -61,8 +61,11 @@ The files the PR touches decide how much review it gets, so nobody has to rememb
   specialists, no verifier. Costs about the same as running `/code-review` yourself.
 
 `--full` or `--light` overrides the choice; `--lenses` (any agent forced on) implies
-full. Say which pass ran and why in the report, e.g. `light pass — no risky paths,
-120 lines`.
+full. Say which pass ran and why in the report, quoting the gate's `reasons`, so a
+full pass always names the rule that caused it — e.g. `full pass — src/checkout/cart.js
+matches '^src/checkout/' (.review-loop/deny-list:3)` or `light pass — no risky paths,
+120 lines`. Put the same line in the PR sticky summary. If a rule fires on a file it
+shouldn't, the fix is that line, not a habit.
 
 ## Step 2 — Bug finding
 

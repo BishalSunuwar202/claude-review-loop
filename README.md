@@ -47,6 +47,9 @@ deploy). Touch one, or change over 400 lines, and you get the full pass: `/code-
 plus correctness, test and security reviewers. Otherwise it's a light pass: plain
 `/code-review`, at about the same cost. Add your own risky paths, one regex per line, to
 `.review-loop/deny-list` (e.g. `^src/checkout/`). Force either with `--full` or `--light`.
+Every report names the rule that picked the full pass (`src/checkout/cart.js matches
+'^src/checkout/' (.review-loop/deny-list:3)`), so a full pass on the wrong file points
+at a line you can fix. Docs-only changes skip review entirely.
 
 `/review-swarm` flags: `--finder router` (skip `/code-review`, use the built-in
 router + coverage split instead), `--lenses spec,incident,-test` (force
