@@ -1,15 +1,15 @@
 ---
 name: review-swarm
 description: >
-  One multi-agent review pass over the current branch or a PR. Claude Code's
-  built-in /code-review is the bug finder; a correctness reviewer and a test
-  reviewer add a second close read and check whether tests really guard what they
-  claim, a security auditor joins on risky paths, and spec, incident, xp and craft
-  lenses are opt-in. Findings with HIGH/CRITICAL severity are verified by a
-  reproducer, deduped, given a verdict, and posted to the PR or reported locally.
+  One review pass over the current branch or a PR. The files it touches pick
+  the pass: light is plain /code-review; full (risky paths such as auth,
+  payments or migrations, or a big diff) adds correctness, test and security
+  reviewers on top of /code-review, verifies HIGH/CRITICAL findings with a
+  reproducer, and dedupes. Spec, incident, xp and craft lenses are opt-in.
+  Posts to the PR or reports locally.
   Use for "review-swarm", "swarm review", or a multi-perspective review. The
   review-loop skill calls this every round.
-  Arguments: [PR number|URL|branch] [--finder code-review|router] [--lenses list]
+  Arguments: [PR number|URL|branch] [--full|--light] [--finder code-review|router] [--lenses list]
 ---
 # Review Swarm — one review pass
 
@@ -49,6 +49,21 @@ Collect the **spec**: the PR body, any issue it links (`gh issue view <n> --json
 title,body`), and any spec/plan file the PR body or commit messages name. Save it
 to `.review-loop/runs/r<round>/spec.md`. Empty is fine.
 
+### Pick the pass (harness, no model judgement)
+
+The files the PR touches decide how much review it gets, so nobody has to remember:
+
+- **Full pass** if the gate says `mandatory_delegation: true` — the diff touches a
+  risky path (auth, payments, billing, migrations, webhooks, queues, deploy… plus
+  anything in `.review-loop/deny-list`), is over 400 lines, or changes over 20 files.
+  Run Steps 2–6.
+- **Light pass** otherwise: Step 2 with `/code-review` only, then Steps 5–6. No
+  specialists, no verifier. Costs about the same as running `/code-review` yourself.
+
+`--full` or `--light` overrides the choice; `--lenses` (any agent forced on) implies
+full. Say which pass ran and why in the report, e.g. `light pass — no risky paths,
+120 lines`.
+
 ## Step 2 — Bug finding
 
 **Default finder: `/code-review`.** Invoke `Skill("code-review", args="high
@@ -82,7 +97,7 @@ the sole reviewer for its files.
 Save every agent's full output under `.review-loop/runs/r<round>/`; keep only the
 findings blocks in context.
 
-## Step 3 — Specialists (what the finder can't know)
+## Step 3 — Specialists (full pass only)
 
 Decide which run **from the facts, not from a model's grade**. Dispatch all that
 apply in parallel, in one message. Each is told it is the sole reviewer for its
@@ -107,7 +122,7 @@ are cheap and the opt-in lenses need them.
 contradict each other on a HIGH finding, one extra `fable` pass may be scoped to
 that disagreement.
 
-## Step 4 — Verify HIGH/CRITICAL by observation
+## Step 4 — Verify HIGH/CRITICAL by observation (full pass only)
 
 Collect every HIGH/CRITICAL finding (and any MEDIUM with `confidence: LOW` that
 would block if true). If there are any and the project has a runnable test setup,

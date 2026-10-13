@@ -41,6 +41,13 @@ Start a new Claude Code session afterwards.
 
 `/review-loop` flags: `--push`, `--max-rounds N` (default 3), `--budget M` minutes
 (default 45), `--reset`.
+**Which review runs is decided by the files the PR touches.** `gate.sh` checks the diff
+against a list of risky paths (auth, payments, billing, migrations, webhooks, queues,
+deploy). Touch one, or change over 400 lines, and you get the full pass: `/code-review`
+plus correctness, test and security reviewers. Otherwise it's a light pass: plain
+`/code-review`, at about the same cost. Add your own risky paths, one regex per line, to
+`.review-loop/deny-list` (e.g. `^src/checkout/`). Force either with `--full` or `--light`.
+
 `/review-swarm` flags: `--finder router` (skip `/code-review`, use the built-in
 router + coverage split instead), `--lenses spec,incident,-test` (force
 specialists on or off).
@@ -50,7 +57,7 @@ On a PR you didn't author, the loop runs review-only: comments, no fixes, no pus
 ## How a round works
 
 ```
- gate.sh ── size, risky paths, docs-only?          incidents.sh ── past fix commits
+ gate.sh ── size, risky paths, docs-only? → light or full pass          incidents.sh ── past fix commits
     │                                                   │
     ▼                                                   ▼
  /code-review high  ──────────────►  bug findings (normalised: file line, id, severity)

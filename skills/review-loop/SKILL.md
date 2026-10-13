@@ -7,7 +7,7 @@ description: >
   finding stuck after repeated fixes. Ambiguous and human-thread items pause for
   the user with a precise question. Use for "review-loop", "review and fix my
   branch", "babysit this PR's review", or "loop until review is clean".
-  Arguments: [PR number|PR URL|branch] [--push] [--max-rounds N] [--budget M] [--reset]
+  Arguments: [PR number|PR URL|branch] [--push] [--full|--light] [--max-rounds N] [--budget M] [--reset]
 ---
 # Review Loop
 
@@ -72,6 +72,10 @@ loopstate.py decide                              → continue or stop
 since `review_marker_sha` *and* the diff `review_marker_sha..HEAD` touches a
 non-doc file. If triage fixed nothing, there is nothing new to review — call
 `decide` directly (it will report converged).
+
+**Which pass.** Pass `--full`/`--light` through to review-swarm if the user gave
+one; otherwise review-swarm picks from the files touched. A fix round that touches
+a risky path gets a full pass even if round 1 was light.
 
 **Re-review scope.** From round 2, tell review-swarm to review the whole branch
 diff again but to focus on `git diff <review_marker_sha>..HEAD`: fixes are where
